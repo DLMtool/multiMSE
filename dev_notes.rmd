@@ -1,0 +1,57 @@
+
+# multiMSE
+
+## Assumptions:
+1. Two-sex stocks have identical fleet structure (taken from Stock 1)
+2.
+
+
+## Known issues:
+  1. maxage is the same across species so computationally inefficient
+  2. initdist is no yet working as a cpars value (indeed I'm not sure where this comes into the OM specification at all!)
+  3. NO custom MP check whether already in DLMtool
+  4. No parallel processing option at present
+  5. plus-group not accounted for yet
+  6. bio-economics not included
+  7. cpars$mov not dealt with yet
+  8. Blow calcs aren't included 
+  9. initial depletion isn't included
+  10. conditioning with real data not yet implemented
+  11. Hist option not included
+  12. Discard mortality will have to be stock-fleet specific
+  13. Changing MOM@nsim doesn't seem to work - because of CatchFrac I think
+  14. curE doesn't result in MMSE@Effort = 1
+  15. add a check that MPs is correct structure - correct documentation for MPs in multiMSE
+
+## Priority list
+  1. Multi-fleet popdynCPP needed to properly account for fleet-specific MPAs, spatial targetting etc.
+  2. How should same fleets by handled? Use identical parameters simulation-by-simulation for each stock?
+
+## Known issues
+  1) SSN[SPAYR] <- Nfrac[SA] * StockPars[[p]]$R0[S] * StockPars[[p]]$initdist[SAR]  this is Pinitdist[SR] in runMSE but I have no idea where Pinitdist comes from
+  2) currently assume unfished vulnerability is equally weighted among fleets (first V calculation)
+  3) MICE mode: MSY calcs are fully dynamic and by year - we do not solve the long-term equilibrium MSY for MICE models
+  4) No check for MOM correct object formatting yet
+  5) MICE mode: SSB0 is constant (does not change with M for example) and based on long-term ecosystem average as specified in StockPars[[p]]$SSB0
+  6) For MSY calculations, vulnerability is calculated by fishing mortality rate summed over both areas (not weighted by total catches for example)
+  7) Blow calculations are currently not coded!
+  8) RefY reference yield is currently MSY!
+  9) No control$Cbias_yr functionality!
+  10) MGT calculation not currently coded!
+  11) No annual MSY calculation currently (need updating inside MP loop because it now responds to MICE modelled relationships)
+  12) Currently there is no MMP checking
+  13) SelectChanged, the switch that only does MSY calcs if selectivity has changed, is currently set permanently to TRUE (around line 1392)
+  14) Historical vulnerability is calculated across fleets according to todays catch fraction
+  15) Pstar quantiles of TACs not available nreps fixed to 1
+
+
+## Needs checking
+  1) The vulnerability in the fleets does not max to 1
+  2) When calculating aggregate retention in the multi_q_estimation function, how should max retention at age be calculated (what is the max value)?
+  3) Single simulation run nsim=1
+  4) get rid of any DLMtool::: triple colons
+  
+  
+  
+  
+
