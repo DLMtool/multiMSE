@@ -152,6 +152,7 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
                                              nsim, nyears, proyears,
                                              cpars=SampCpars[[p]][[f]])
     }
+
   }
 
   # --- Sample Obs Parameters ----
@@ -179,6 +180,7 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
       paste(mat[x,],collapse="_"), mat=SexPars$SSBfrom)
     parcopy<-match(sexmatches,sexmatches)
     StockPars_t<-StockPars # need to store a temporary object for copying to/from
+    FleetPars_t <- FleetPars
 
     for(p in 1:np){
 
@@ -189,8 +191,27 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
       StockPars[[p]]$R0<-StockPars_t[[parcopy[p]]]$R0
       StockPars[[p]]$R0a<-StockPars_t[[parcopy[p]]]$R0a
       StockPars[[p]]$Perr_y<-StockPars_t[[parcopy[p]]]$Perr_y
+
+
+      for (f in 1:nf) {
+        # copy over Fleet, Obs and Imps pars
+
+        FleetPars[[p]][[f]]$Esd <- FleetPars_t[[parcopy[p]]][[f]]$Esd
+        FleetPars[[p]][[f]]$Find <- FleetPars_t[[parcopy[p]]][[f]]$Find
+        FleetPars[[p]][[f]]$dFFinal <- FleetPars_t[[parcopy[p]]][[f]]$dFFinal
+        FleetPars[[p]][[f]]$Spat_targ <- FleetPars_t[[parcopy[p]]][[f]]$Spat_targ
+        FleetPars[[p]][[f]]$qinc <- FleetPars_t[[parcopy[p]]][[f]]$qinc
+        FleetPars[[p]][[f]]$qcv <- FleetPars_t[[parcopy[p]]][[f]]$qcv
+        FleetPars[[p]][[f]]$qvar <- FleetPars_t[[parcopy[p]]][[f]]$qvar
+        FleetPars[[p]][[f]]$FinF <- FleetPars_t[[parcopy[p]]][[f]]$FinF
+
+
+        ObsPars[[p]][[f]] <- ObsPars[[parcopy[p]]][[f]]
+        ImpPars[[p]][[f]] <- ImpPars[[parcopy[p]]][[f]]
+      }
     }
   }
+
 
   nareas_s <- NIL(StockPars,"nareas",lev1=T)
   if(length(unique(nareas_s))!=1)
@@ -199,7 +220,9 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
   nareas <- nareas_s[1]
 
   # ---- Initialize arrays ----
-  N <- Biomass <- Z<- VBiomass<- SSN <- SSB <- array(NA, dim = c(nsim, np, maxage, nyears, nareas))
+  N <- Biomass <- Z<- VBiomass<- SSN <- SSB <- array(NA,
+                                                     dim = c(nsim, np, maxage,
+                                                             nyears, nareas))
   VF <- FretA <- array(NA, dim = c(nsim, np, nf, maxage, allyears))
   VBF <- FM <- FMret <- array(NA, dim = c(nsim, np, nf, maxage, nyears, nareas))  # stock numbers array
   SPR <- array(NA, dim = c(nsim, np, maxage, nyears)) # store the Spawning Potential Ratio
@@ -383,10 +406,10 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
   if(snowfall::sfIsRunning()){
     out<-snowfall::sfLapply(1:nsim,getq_multi_MICE,StockPars, FleetPars,
                             np,nf, nareas, maxage, nyears, N, VF, FretA,
-                            maxF=MOM@maxF, MPA, CatchFrac, bounds= bounds,
+                            maxF=MOM@maxF, MPA, CatchFrac, bounds=bounds,
                             tol=1E-6,Rel,SexPars)
   }else{
-    out<-lapply(1:nsim,getq_multi_MICE, StockPars, FleetPars, np,nf, nareas,
+    out<-lapply(1:nsim,getq_multi_MICE, StockPars, FleetPars, np, nf, nareas,
                 maxage, nyears, N, VF, FretA, maxF=MOM@maxF,
                 MPA,CatchFrac, bounds= bounds,tol=1E-6,Rel,SexPars)
   }
@@ -550,6 +573,30 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
                    dim=c(np ,maxage, nyears, nareas, nsim)), c(5,1,2,3,4))
   FMt<-aperm(array(as.numeric(unlist(histYrs[17,], use.names=FALSE)),
                    dim=c(np ,maxage, nyears, nareas, nsim)), c(5,1,2,3,4))
+
+
+  #######################
+  fem <- apply(CB[1,1,1,,,], 2, sum)
+  male<- apply(CB[1,2,1,,,], 2, sum)
+
+  plot(fem, type="l")
+  lines(male, col='blue')
+
+
+  # why is male catch so low?
+  plot(StockPars[[1]]$Len_age[1,,1], type="l", ylim=c(0, 200))
+  lines(StockPars[[2]]$Len_age[1,,1],col='blue')
+
+  plot(FleetPars[[1]][[1]]$V[1,,1], type="l", ylim=c(0, 1))
+  lines(FleetPars[[2]][[1]]$V[1,,1],col='blue')
+
+  # selectivity should be different if growth is different!?!?!!
+
+  plot(FM[1,1,1,20,,2], type="l")
+  lines(FM[1,2,1,20,,2], type="l", col='blue')
+
+
+  #######################
 
   # Depletion check
   SSB0_specified <- array(NIL(StockPars,'SSB0'),c(nsim,np))
@@ -800,12 +847,57 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
     }
   }
 
-  # --- Condition Simulated Data on input Data object (if it exists) & calculate error stats ----
+  # ---- Condition Simulated Data on input Data object (if it exists) & calculate error stats ----
   # TODO ---- add conditioning on real data
 
 
+  # ---- Return Historical Object ----
   if (Hist) {
-    # TODO --- add Hist object
+    if(!silent) message("Returning historical simulations")
+    HistList <- vector('list', np)
+    for (p in 1:np) {
+      HistList[[p]] <- vector('list', nf)
+      for (f in 1:nf) {
+        HistObj <- new('Hist')
+
+        Misc$initdist <- StockPars[[p]]$initdist
+        Misc$N <- N[,p,,,]
+        Misc$B <- Biomass[,p,,,]
+        Data@Misc <- list()
+        HistObj@Data <- DataList[[p]][[f]]
+        OMPars <- DataList[[p]][[f]]@OM
+        HistObj@Obs <- ObsPars[[p]][[f]]
+        om <- OMPars[,order(colnames(OMPars))]
+        ind <- which(!colnames(om) %in% colnames(RefPoints))
+        HistObj@OM <- om[,ind]
+        HistObj@AtAge <- list(Length=Len_age, Weight=Wt_age, Select=V,
+                              Retention=retA,
+                              Maturity=Mat_age, N.Mortality=M_ageArray,
+                              Nage=apply(N, 1:3, sum),
+                              SSBage=apply(SSB, 1:3, sum),
+                              FM=FM,
+                              N_unfished=N_unfished)
+        nout <- t(apply(N, c(1, 3), sum))
+        vb <- t(apply(VBiomass, c(1, 3), sum))
+        b <- t(apply(Biomass, c(1, 3), sum))
+        ssb <- t(apply(SSB, c(1, 3), sum))
+        Cc <- t(apply(CB, c(1,3), sum))
+        Ccret <- t(apply(CBret, c(1,3), sum))
+        rec <- t(apply((N)[, 1, , ], c(1,2), sum))
+        TSdata <- list(VB=t(vb), SSB=t(ssb), B=t(b), Removals=t(Cc), Catch=t(Ccret),
+                       Rec=t(rec), N=t(nout),
+                       Find=Find, Marray=Marray, RecDev=Perr_y)
+        HistObj@TSdata <- TSdata
+        HistObj@Ref <- RefPoints[,order(colnames(RefPoints))]
+        HistObj@SampPars <- c(StockPars, FleetPars, ObsPars, ImpPars)
+        HistObj@Misc <- Misc
+        HistObj@Misc$CurrentYr <- OM@CurrentYr
+        HistObj@Misc$ErrList <- ErrList
+
+        HistList[[p]][[f]] <- HistObj
+      } # end fleets
+    } # end stocks
+
 
   }
 
