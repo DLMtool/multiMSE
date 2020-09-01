@@ -574,30 +574,6 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
   FMt<-aperm(array(as.numeric(unlist(histYrs[17,], use.names=FALSE)),
                    dim=c(np ,maxage, nyears, nareas, nsim)), c(5,1,2,3,4))
 
-
-  #######################
-  fem <- apply(CB[1,1,1,,,], 2, sum)
-  male<- apply(CB[1,2,1,,,], 2, sum)
-
-  plot(fem, type="l")
-  lines(male, col='blue')
-
-
-  # why is male catch so low?
-  plot(StockPars[[1]]$Len_age[1,,1], type="l", ylim=c(0, 200))
-  lines(StockPars[[2]]$Len_age[1,,1],col='blue')
-
-  plot(FleetPars[[1]][[1]]$V[1,,1], type="l", ylim=c(0, 1))
-  lines(FleetPars[[2]][[1]]$V[1,,1],col='blue')
-
-  # selectivity should be different if growth is different!?!?!!
-
-  plot(FM[1,1,1,20,,2], type="l")
-  lines(FM[1,2,1,20,,2], type="l", col='blue')
-
-
-  #######################
-
   # Depletion check
   SSB0_specified <- array(NIL(StockPars,'SSB0'),c(nsim,np))
   D_specified <- array(NIL(StockPars,'D'),c(nsim,np))
@@ -866,33 +842,41 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
         Data@Misc <- list()
         HistObj@Data <- DataList[[p]][[f]]
         OMPars <- DataList[[p]][[f]]@OM
-        HistObj@Obs <- ObsPars[[p]][[f]]
+        HistObj@Obs <- as.data.frame(ObsPars[[p]][[f]])
         om <- OMPars[,order(colnames(OMPars))]
+
         ind <- which(!colnames(om) %in% colnames(RefPoints))
         HistObj@OM <- om[,ind]
-        HistObj@AtAge <- list(Length=Len_age, Weight=Wt_age, Select=V,
-                              Retention=retA,
-                              Maturity=Mat_age, N.Mortality=M_ageArray,
-                              Nage=apply(N, 1:3, sum),
-                              SSBage=apply(SSB, 1:3, sum),
-                              FM=FM,
-                              N_unfished=N_unfished)
-        nout <- t(apply(N, c(1, 3), sum))
-        vb <- t(apply(VBiomass, c(1, 3), sum))
-        b <- t(apply(Biomass, c(1, 3), sum))
-        ssb <- t(apply(SSB, c(1, 3), sum))
-        Cc <- t(apply(CB, c(1,3), sum))
-        Ccret <- t(apply(CBret, c(1,3), sum))
-        rec <- t(apply((N)[, 1, , ], c(1,2), sum))
+        HistObj@AtAge <- list(Length=StockPars[[p]]$Len_age,
+                              Weight=StockPars[[p]]$Wt_age,
+                              Select=FleetPars[[p]][[f]]$V,
+                              Retention=FleetPars[[p]][[f]]$retA,
+                              Maturity=StockPars[[p]]$Mat_age,
+                              N.Mortality=StockPars[[p]]$M_ageArray,
+                              Nage=apply(N[,p,,,], 1:3, sum),
+                              SSBage=apply(SSB[,p,,,], 1:3, sum),
+                              FM=FM[,p,f,,,]
+                              )
+        nout <- t(apply(N[,p,,,], c(1, 3), sum))
+        vb <- t(apply(VBiomass[,p,,,], c(1, 3), sum))
+        b <- t(apply(Biomass[,p,,,], c(1, 3), sum))
+        ssb <- t(apply(SSB[,p,,,], c(1, 3), sum))
+        Cc <- t(apply(CB[,p,f,,,], c(1,3), sum))
+        Ccret <- t(apply(CBret[,p,f,,,], c(1,3), sum))
+        rec <- t(apply(N[, p,1, , ], c(1,2), sum))
         TSdata <- list(VB=t(vb), SSB=t(ssb), B=t(b), Removals=t(Cc), Catch=t(Ccret),
                        Rec=t(rec), N=t(nout),
-                       Find=Find, Marray=Marray, RecDev=Perr_y)
+                       Find=FleetPars[[p]][[f]]$Find,
+                       Marray=StockPars[[p]]$Marray, RecDev=StockPars[[p]]$Perr_y)
         HistObj@TSdata <- TSdata
-        HistObj@Ref <- RefPoints[,order(colnames(RefPoints))]
-        HistObj@SampPars <- c(StockPars, FleetPars, ObsPars, ImpPars)
+        HistObj@Ref <- data.frame() # RefPoints[,order(colnames(RefPoints))]
+        HistObj@SampPars <- c(StockPars[[p]],
+                              FleetPars[[p]][[f]],
+                              ObsPars[[p]][[f]],
+                              ImpPars[[p]][[f]])
         HistObj@Misc <- Misc
         HistObj@Misc$CurrentYr <- OM@CurrentYr
-        HistObj@Misc$ErrList <- ErrList
+        HistObj@Misc$ErrList <- ErrList_P_F[[p]][[f]]
 
         HistList[[p]][[f]] <- HistObj
       } # end fleets
