@@ -882,7 +882,7 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
       } # end fleets
     } # end stocks
 
-
+    return(HistList)
   }
 
   # ---- Detecting MP specification ----
