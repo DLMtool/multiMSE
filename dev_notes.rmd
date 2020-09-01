@@ -22,6 +22,7 @@
   13. Changing MOM@nsim doesn't seem to work - because of CatchFrac I think
   14. curE doesn't result in MMSE@Effort = 1
   15. add a check that MPs is correct structure - correct documentation for MPs in multiMSE
+  16. Fleet, Obs, and Imp parameters are copied over for 2-sex stocks (ie both sexes have identical fleet, obs and imp parameters)
 
 ## Priority list
   1. Multi-fleet popdynCPP needed to properly account for fleet-specific MPAs, spatial targetting etc.
