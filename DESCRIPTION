@@ -10,5 +10,6 @@ License: What license is it under?
 Encoding: UTF-8
 LazyData: true
 Depends: 
-    R (>= 2.10)
+    R (>= 2.10),
+    DLMtool
 RoxygenNote: 7.1.1

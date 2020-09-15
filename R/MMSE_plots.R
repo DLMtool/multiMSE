@@ -57,7 +57,6 @@ setMethod("plot", signature(x = "MMSE", y = "missing"),
 
 
             # --- Biomass projection ---------------------------------------------------
-
             B_BMSY<-MMSE@B_BMSY
             Blims <- c(0,quantile(B_BMSY,0.95))
 

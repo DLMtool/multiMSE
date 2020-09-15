@@ -29,9 +29,9 @@
 #' @param SexPars A list of sex-specific dynamics SSBfrom stock_age
 #' @author T.Carruthers
 #' @keywords internal
-getq_multi_MICE <- function(x,StockPars, FleetPars, np,nf, nareas, maxage,
+getq_multi_MICE <- function(x, StockPars, FleetPars, np,nf, nareas, maxage,
                             nyears, N, VF, FretA, maxF=0.9, MPA,CatchFrac,
-                            bounds= c(1e-05, 15),tol=1E-6,Rel,SexPars) {
+                            bounds= c(1e-05, 15),tol=1E-6,Rel,SexPars, plusgroup) {
 
   Nx <- array(N[x,,,,],dim(N)[2:5])
   VFx <- array(VF[x,,,,],dim(VF)[2:5])
@@ -104,7 +104,7 @@ getq_multi_MICE <- function(x,StockPars, FleetPars, np,nf, nareas, maxage,
              M_ageArrayx=M_ageArrayx, Mat_agex=Mat_agex, Asizex=Asizex,Kx=Kx,
              Linfx=Linfx, t0x=t0x, Mx=Mx, R0x=R0x, R0ax=R0ax, SSBpRx=SSBpRx,
              SSB0x=SSB0x, hsx=hsx, ax=ax, bx=bx, aRx=aRx, bRx=bRx, Perrx=Perrx,
-             SRrelx=SRrelx, Rel=Rel, SexPars=SexPars, x=x,
+             SRrelx=SRrelx, Rel=Rel, SexPars=SexPars, x=x, plusgroup=plusgroup,
              control=list(trace=1,factr=factr))
 
   out<-qestMICE(par=opt$par, depc=depc,CFc=CFc,mode='calc', np=np, nf=nf,
@@ -114,7 +114,7 @@ getq_multi_MICE <- function(x,StockPars, FleetPars, np,nf, nareas, maxage,
                 Asizex=Asizex, Kx=Kx, Linfx=Linfx, t0x=t0x, Mx=Mx, R0x=R0x,
                 R0ax=R0ax, SSBpRx=SSBpRx, SSB0x=SSB0x, hsx=hsx, aRx=aRx, bRx=bRx,
                 ax=ax, bx=bx, Perrx=Perrx, SRrelx=SRrelx,
-                Rel=Rel,SexPars=SexPars,x=x)
+                Rel=Rel,SexPars=SexPars,x=x, plusgroup=plusgroup)
 
   out
 }
@@ -165,7 +165,7 @@ getq_multi_MICE <- function(x,StockPars, FleetPars, np,nf, nareas, maxage,
 qestMICE<-function(par,depc,CFc,mode='opt',np,nf,nyears,nareas,maxage,Nx,VFx,
                    FretAx,Effind,distx,movx,Spat_targ,M_ageArrayx,Mat_agex,
                    Asizex,Kx,Linfx,t0x,Mx,R0x,R0ax,SSBpRx,SSB0x,hsx,aRx, bRx,
-                   ax,bx,Perrx,SRrelx,Rel,SexPars,x){
+                   ax,bx,Perrx,SRrelx,Rel,SexPars,x, plusgroup){
 
   qsx<-exp(par[1:np])
   if(nf==1){
@@ -179,7 +179,7 @@ qestMICE<-function(par,depc,CFc,mode='opt',np,nf,nyears,nareas,maxage,Nx,VFx,
   HistVars<-popdynMICE(qsx,qfracx,np,nf,nyears,nareas,maxage,Nx,VFx,FretAx,
                        Effind,movx,Spat_targ,M_ageArrayx, Mat_agex,Asizex,Kx,
                        Linfx,t0x,Mx,R0x,R0ax,SSBpRx,hsx,aRx, bRx,ax,bx,Perrx,
-                       SRrelx,Rel,SexPars,x)
+                       SRrelx,Rel,SexPars,x, plusgroup)
 
   SSBest<-apply(HistVars$SSBx,c(1,3),sum)
   deppred<-SSBest[,nyears]/SSB0x
@@ -190,6 +190,9 @@ qestMICE<-function(par,depc,CFc,mode='opt',np,nf,nyears,nareas,maxage,Nx,VFx,
       paste(mat[x,],collapse="_"), mat=SexPars$SSBfrom)
     parcopy<-match(sexmatches,sexmatches)
     deppred<-deppred[parcopy]
+
+    qsx <- qsx[parcopy] # copy female q to males
+
   }
 
   Cpred0<-array(NA,c(np,nf,maxage,nareas))

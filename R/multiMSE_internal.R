@@ -90,7 +90,8 @@ TEG<-function(vec){ # make index for list calculation
 #' @param SexPars A list of sex-specific relationships (SSBfrom, stock_age)
 #' @author T.Carruthers
 #' @keywords internal
-HistMICE<-function(x,StockPars, FleetPars, np,nf, nareas, maxage, nyears, N, VF, FretA, maxF=0.9, MPA,Rel,SexPars,qs,qfrac){
+HistMICE<-function(x,StockPars, FleetPars, np,nf, nareas, maxage, nyears, N, VF, FretA, maxF=0.9, MPA,Rel,SexPars,qs,qfrac,
+                   plusgroup){
 
   Nx<-array(N[x,,,,],dim(N)[2:5])
   VFx<-array(VF[x,,,,],dim(VF)[2:5])
@@ -139,7 +140,8 @@ HistMICE<-function(x,StockPars, FleetPars, np,nf, nareas, maxage, nyears, N, VF,
 
   popdynMICE(qsx=qsx,qfracx=qfracx,np,nf,nyears,nareas,maxage,Nx,VFx,FretAx,Effind,
              movx,Spat_targ,M_ageArrayx,Mat_agex,Asizex,Kx,Linfx,t0x,Mx,R0x,R0ax,
-             SSBpRx,hsx,aRx, bRx,ax,bx,Perrx,SRrelx,Rel,SexPars,x)
+             SSBpRx,hsx,aRx, bRx,ax,bx,Perrx,SRrelx,Rel,SexPars,x,
+             plusgroup)
 
 }
 

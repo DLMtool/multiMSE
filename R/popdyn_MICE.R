@@ -42,7 +42,7 @@
 popdynMICE<-function(qsx,qfracx,np,nf,nyears,nareas,maxage,Nx,VFx,FretAx,Effind,
                      movx,Spat_targ, M_ageArrayx,Mat_agex,Asizex,Kx,Linfx,
                      t0x,Mx,R0x,R0ax,SSBpRx,hsx,aRx,
-                     bRx,ax,bx,Perrx,SRrelx,Rel,SexPars,x) {
+                     bRx,ax,bx,Perrx,SRrelx,Rel,SexPars,x, plusgroup) {
 
   Bx<-SSNx<-SSBx<-VBx<-Zx<-array(NA,dim(Nx))
   VBfx<-array(NA,c(np,nf,maxage,nyears,nareas)) # initial year calculation
@@ -108,7 +108,8 @@ popdynMICE<-function(qsx,qfracx,np,nf,nyears,nareas,maxage,Nx,VFx,FretAx,Effind,
                        Asizex=Asizex,
                        Kx=Ky[,y-1], Linfx=Linfy[,y-1], t0x=t0y[,y-1],
                        Mx=My[,y-1], R0x=R0x,R0ax=R0ax,SSBpRx=SSBpRx,ax=ay[,y-1],
-                       bx=by[,y-1],Rel=Rel, SexPars=SexPars, x=x)
+                       bx=by[,y-1],Rel=Rel, SexPars=SexPars, x=x,
+                       plusgroup=plusgroup)
 
 
     if(y<=nyears){
@@ -182,7 +183,8 @@ popdynMICE<-function(qsx,qfracx,np,nf,nyears,nareas,maxage,Nx,VFx,FretAx,Effind,
 popdynOneMICE<-function(np,nf,nareas, maxage, Ncur, Vcur, FMretx, FMx, PerrYrp,
                         hsx, aRx, bRx, movy,Spat_targ,
                         SRrelx,M_agecur,Mat_agecur,Asizex,
-                        Kx,Linfx,t0x,Mx,R0x,R0ax,SSBpRx,ax,bx,Rel,SexPars,x){
+                        Kx,Linfx,t0x,Mx,R0x,R0ax,SSBpRx,ax,bx,Rel,SexPars,x,
+                        plusgroup){
 
   # ----Initial Bcur calc (before any weight at age recalculation change) ----
   # Bcalc
@@ -258,7 +260,7 @@ popdynOneMICE<-function(np,nf,nareas, maxage, Ncur, Vcur, FMretx, FMx, PerrYrp,
     NextYrN <- DLMtool::popdynOneTScpp(nareas, maxage, SSBcurr=colSums(SSBcur[p,,]), Ncurr=Ncur[p,,],
                             Zcurr=Zcur[p,,], PerrYr=PerrYrp[p], hs=hsx[p],
                             R0a=R0ax[p,], SSBpR=SSBpRx[p,], aR=aRx[p,], bR=bRx[p,],
-                            mov=movy[p,,,], SRrel=SRrelx[p])
+                            mov=movy[p,,,], SRrel=SRrelx[p], plusgroup = plusgroup[p])
     Nnext[p,,]<-NextYrN
 
 

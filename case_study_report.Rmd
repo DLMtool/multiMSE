@@ -1,0 +1,36 @@
+---
+title: 'multiMSE: multi-stock & multi-fleet operating models'
+subtitle: 'CDFW Case Studies: lobster, rock crab, and halibut'
+author: "Adrian H <adrian@bluematterscience.com>"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+  html_document:
+    toc: true
+    toc_depth: 2
+---
+
+
+# Introduction
+
+
+# Case Studies
+
+## Rock Crab
+### Setting up OM
+
+
+
+## Lobster
+
+### Setting up OM
+
+### Management Options
+
+
+
+
+## Halibut
+

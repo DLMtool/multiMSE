@@ -109,14 +109,29 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
     "to current effort for all fleets")
   }
 
+  # All stocks and sampled parameters must have compatible array sizes (maxage)
+  maxage_s <- unique(SIL(MOM@Stocks,"maxage"))
+  if (length(maxage_s)>1)
+    message(paste("Stocks of varying maximum ages have been specified,",
+                  "all simulations will run to",max(maxage_s),"ages"))
+  maxage <- max(maxage_s)
+  for(p in 1:np) MOM@Stocks[[p]]@maxage<-maxage
 
   # --- Sample custom parameters ----
+  # Initial N-at-age (temp workaround)
+  N_at_age_initial <- matrix(NA, nrow=maxage, ncol=np)
   SampCpars <- list() # empty list
   # custom parameters exist - sample and write to list
   for(p in 1:np){
     SampCpars[[p]]<-list()
     for(f in 1:nf){
       if(length(cpars[[p]][[f]])>0){
+        if (length(cpars[[p]][[f]]$N_at_age_initial)>0) {
+          N_at_age_initial[,p] <- cpars[[p]][[f]]$N_at_age_initial
+          cpars[[p]][[f]]$N_at_age_initial <- NULL
+        }
+
+
         message(paste(Stocks[[p]]@Name," - ",Fleets[[p]][[f]]@Name))
         ncparsim <- DLMtool::cparscheck(cpars[[p]][[f]])
         SampCpars[[p]][[f]] <- DLMtool::SampleCpars(cpars[[p]][[f]], nsim,
@@ -127,20 +142,17 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
     }
   }
 
-  # All stocks and sampled parameters must have compatible array sizes (maxage)
-  maxage_s <- unique(SIL(MOM@Stocks,"maxage"))
-  if (length(maxage_s)>1)
-    message(paste("Stocks of varying maximum ages have been specified,",
-    "all simulations will run to",max(maxage_s),"ages"))
-  maxage <- max(maxage_s)
-  for(p in 1:np) MOM@Stocks[[p]]@maxage<-maxage
-
   # --- Sample Stock Parameters ----
   StockPars<-FleetPars<-ObsPars<-ImpPars<-new('list')
   for(p in 1:np){
     StockPars[[p]] <- DLMtool::SampleStockPars(MOM@Stocks[[p]], nsim, nyears,
                                                proyears, SampCpars[[p]][[1]],
                                                msg=silent)
+  }
+
+  plusgroup <- rep(0, np)
+  for (p in 1:np) {
+    if(!is.null(cpars[[p]][[1]]$plusgroup) & all(cpars[[p]][[1]]$plusgroup==1)) plusgroup[p] <- 1
   }
 
   # --- Sample Fleet Parameters ----
@@ -192,7 +204,6 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
       StockPars[[p]]$R0a<-StockPars_t[[parcopy[p]]]$R0a
       StockPars[[p]]$Perr_y<-StockPars_t[[parcopy[p]]]$Perr_y
 
-
       for (f in 1:nf) {
         # copy over Fleet, Obs and Imps pars
 
@@ -205,13 +216,11 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
         FleetPars[[p]][[f]]$qvar <- FleetPars_t[[parcopy[p]]][[f]]$qvar
         FleetPars[[p]][[f]]$FinF <- FleetPars_t[[parcopy[p]]][[f]]$FinF
 
-
         ObsPars[[p]][[f]] <- ObsPars[[parcopy[p]]][[f]]
         ImpPars[[p]][[f]] <- ImpPars[[parcopy[p]]][[f]]
       }
     }
   }
-
 
   nareas_s <- NIL(StockPars,"nareas",lev1=T)
   if(length(unique(nareas_s))!=1)
@@ -236,12 +245,14 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
   HermFrac <- expandHerm(SexPars$Herm,maxage=StockPars[[1]]$maxage,np=np,nsim=nsim)
 
   ## TODO - CHECK HERM ----
-
-
   for(p in 1:np){ # loop over stocks
     #  --- Pre Equilibrium calcs ----
     surv <- matrix(1, nsim, maxage)
     surv[, 2:maxage] <- t(exp(-apply(StockPars[[p]]$M_ageArray[,,1], 1, cumsum)))[, 1:(maxage-1)]  # Survival array
+
+    if (plusgroup[p]) {
+      surv[,maxage] <- surv[,maxage]+surv[,maxage]*exp(-StockPars[[p]]$M_ageArray[,maxage,1])/(1-exp(-StockPars[[p]]$M_ageArray[,maxage,1])) # indefinite integral
+    }
 
     # predicted Numbers of mature ages in first year
     Nfrac <- surv * StockPars[[p]]$Mat_age[,,1] * HermFrac[,p,]
@@ -289,7 +300,6 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
     Fretraw <- array(NIL(listy=FleetPars[[p]],namey="retA"),c(nsim,maxage,allyears,nf))
     FretA[Vind] <- Fretraw[Vind[,c(1,4,5,3)]]
 
-
     if (nsim > 1) {
       SSN0 <- apply(SSN[,p , , 1, ], c(1, 3), sum)  # Calculate unfished spawning stock numbers
       SSB0 <- apply(SSB[,p , , 1, ], 1, sum)  # Calculate unfished spawning stock biomass
@@ -311,11 +321,18 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
 
     #  --- Non-equilibrium calcs ----
     # Calculate initial spawning stock numbers
-    SSN[SPAYR] <- Nfrac[SA] * StockPars[[p]]$R0[S] * StockPars[[p]]$initdist[SAR] *
-      StockPars[[p]]$Perr_y[Sa]
-    # Calculate initial stock numbers
-    N[SPAYR] <- StockPars[[p]]$R0[S] * surv[SA] * HermFrac[SPA] *
-      StockPars[[p]]$initdist[SAR] * StockPars[[p]]$Perr_y[Sa]
+    if (!all(is.na(N_at_age_initial))) {
+      N_init <- replicate(nsim,  N_at_age_initial[,p]) %>% t()
+      N[SPAYR] <- N_init[SA] *  StockPars[[p]]$initdist[SAR]
+      SSN[SPAYR] <- Nfrac[SA] * N[SPAYR]
+
+    } else {
+      SSN[SPAYR] <- Nfrac[SA] * StockPars[[p]]$R0[S] * StockPars[[p]]$initdist[SAR] *
+        StockPars[[p]]$Perr_y[Sa]
+      # Calculate initial stock numbers
+      N[SPAYR] <- StockPars[[p]]$R0[S] * surv[SA] * HermFrac[SPA] *
+        StockPars[[p]]$initdist[SAR] * StockPars[[p]]$Perr_y[Sa]
+    }
     # Calculate initial stock biomass
     Biomass[SPAYR] <- N[SPAYR] * StockPars[[p]]$Wt_age[SAY]
     # Calculate spawning stock biomass
@@ -355,9 +372,7 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
         }
       }
     } # end of loop over fleets
-
   } # end of loop over stocks
-
 
   # ---- SexPars - Update SSB0 and SRR parameters for male stock ----
   ## TODO -- TEST ----
@@ -407,11 +422,12 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
     out<-snowfall::sfLapply(1:nsim,getq_multi_MICE,StockPars, FleetPars,
                             np,nf, nareas, maxage, nyears, N, VF, FretA,
                             maxF=MOM@maxF, MPA, CatchFrac, bounds=bounds,
-                            tol=1E-6,Rel,SexPars)
+                            tol=1E-6,Rel,SexPars, plusgroup=plusgroup)
   }else{
     out<-lapply(1:nsim,getq_multi_MICE, StockPars, FleetPars, np, nf, nareas,
                 maxage, nyears, N, VF, FretA, maxF=MOM@maxF,
-                MPA,CatchFrac, bounds= bounds,tol=1E-6,Rel,SexPars)
+                MPA,CatchFrac, bounds= bounds,tol=1E-6,Rel,SexPars,
+                plusgroup=plusgroup)
   }
 
   qs <- t(matrix(NIL(out,"qtot"),nrow=np))
@@ -491,11 +507,13 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
         out2<-snowfall::sfLapply(probQ,getq_multi_MICE,StockPars, FleetPars,
                                  np,nf, nareas, maxage, nyears, N, VF, FretA,
                                  maxF=MOM@maxF, MPA,CatchFrac, bounds=bounds,
-                                 tol=1E-6,Rel,SexPars)
+                                 tol=1E-6,Rel,SexPars,
+                                 plusgroup=plusgroup)
       }else{
         out2<-lapply(probQ,getq_multi_MICE,StockPars, FleetPars, np,nf, nareas,
                      maxage, nyears, N, VF, FretA, maxF=MOM@maxF,
-                     MPA,CatchFrac, bounds= bounds,tol=1E-6,Rel,SexPars)
+                     MPA,CatchFrac, bounds= bounds,tol=1E-6,Rel,SexPars,
+                     plusgroup=plusgroup)
       }
 
       qs2<-t(matrix(NIL(out2,"qtot"),nrow=np))
@@ -536,9 +554,7 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
           "sampled depletion.\nContinuing")
       }
     }
-
     for(p in 1:np)for(f in 1:nf) FleetPars[[p]][[f]]$qs<-qs[,p]*qfrac[,p,f]
-
   }  # end of q estimation steps
 
   if(!silent)
@@ -547,7 +563,8 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
   histYrs <- sapply(1:nsim,HistMICE, StockPars=StockPars,
                     FleetPars=FleetPars,np=np,nf=nf,nareas=nareas,
                     maxage=maxage,nyears=nyears,N=N,VF=VF,FretA=FretA,
-                    maxF=MOM@maxF,MPA=MPA,Rel=Rel,SexPars=SexPars,qs=qs,qfrac=qfrac)
+                    maxF=MOM@maxF,MPA=MPA,Rel=Rel,SexPars=SexPars,qs=qs,qfrac=qfrac,
+                    plusgroup=plusgroup)
 
   N <- aperm(array(as.numeric(unlist(histYrs[1,], use.names=FALSE)),
                    dim=c(np ,maxage, nyears, nareas, nsim)), c(5,1,2,3,4))
@@ -574,6 +591,7 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
   FMt<-aperm(array(as.numeric(unlist(histYrs[17,], use.names=FALSE)),
                    dim=c(np ,maxage, nyears, nareas, nsim)), c(5,1,2,3,4))
 
+
   # Depletion check
   SSB0_specified <- array(NIL(StockPars,'SSB0'),c(nsim,np))
   D_specified <- array(NIL(StockPars,'D'),c(nsim,np))
@@ -598,9 +616,9 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
     for(p in 1:np){
       Cp<-array(Cpred[,p,],c(nsim,nf))/apply(Cpred[,p,],1,sum)
 
-      if(prod(round(CatchFrac[[p]],3)/round(Cp,3))!=1){
+      if(prod(round(CatchFrac[[p]],4)/round(Cp,4))!=1){
         print(Snames[p])
-        print(cbind(CatchFrac[[p]],rep(NaN,nsim),round(Cp,3)))
+        print(cbind(CatchFrac[[p]],rep(NaN,nsim),round(Cp,4)))
         warning("Possible problem in catch fraction calculations")
       }
 
@@ -622,7 +640,8 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
                       StockPars[[p]]$Wt_age, StockPars[[p]]$Mat_age,
                       V=V, maxage=maxage,
                       R0=StockPars[[p]]$R0, SRrel=StockPars[[p]]$SRrel,
-                      hs=StockPars[[p]]$hs, yr.ind=(nyears-1):nyears)
+                      hs=StockPars[[p]]$hs, yr.ind=(nyears-1):nyears,
+                      plusgroup=1)
 
     StockPars[[p]]$MSY <- MSYrefs[1, ]  # record the MSY results (Vulnerable)
     StockPars[[p]]$FMSY <- MSYrefs[2, ]  # instantaneous FMSY (Vulnerable)
@@ -769,11 +788,13 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
 
   # --- Populate Data object with Historical Data ----
   DataList<-new('list')
+  RefPoints <- list()
   for (p in 1:np) {
     DataList[[p]] <- vector('list', nf)
+    RefPoints[[p]] <- vector('list', nf)
     message('Generating historical data for ', Snames[p])
     for (f in 1:nf) {
-      RefPoints <- data.frame(MSY=StockPars[[p]]$MSY,
+      RefPoints[[p]][[f]] <- data.frame(MSY=StockPars[[p]]$MSY,
                               FMSY=StockPars[[p]]$FMSY,
                               SSBMSY=StockPars[[p]]$SSBMSY,
                               SSBMSY_SSB0=StockPars[[p]]$SSBMSY_SSB0,
@@ -811,7 +832,7 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
                        FleetPars[[p]][[f]],
                        ObsPars[[p]][[f]],
                        ImpPars[[p]][[f]],
-                       RefPoints,
+                       RefPoints[[p]][[f]],
                        ErrList_P_F[[p]][[f]],
                        OM=OM,
                        SampCpars[[p]][[f]],
@@ -845,7 +866,7 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
         HistObj@Obs <- as.data.frame(ObsPars[[p]][[f]])
         om <- OMPars[,order(colnames(OMPars))]
 
-        ind <- which(!colnames(om) %in% colnames(RefPoints))
+        ind <- which(!colnames(om) %in% colnames(RefPoints[[p]][[f]]))
         HistObj@OM <- om[,ind]
         HistObj@AtAge <- list(Length=StockPars[[p]]$Len_age,
                               Weight=StockPars[[p]]$Wt_age,
@@ -869,7 +890,7 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
                        Find=FleetPars[[p]][[f]]$Find,
                        Marray=StockPars[[p]]$Marray, RecDev=StockPars[[p]]$Perr_y)
         HistObj@TSdata <- TSdata
-        HistObj@Ref <- data.frame() # RefPoints[,order(colnames(RefPoints))]
+        HistObj@Ref <- RefPoints[[p]][[f]]
         HistObj@SampPars <- c(StockPars[[p]],
                               FleetPars[[p]][[f]],
                               ObsPars[[p]][[f]],
@@ -1135,8 +1156,9 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
     # years between the two areas depending on vulnerabile biomass.
     # So to get Fcur you need to sum over areas (a bit weird)
     NextYrN <- sapply(1:nsim, function(x)
-      popdynOneMICE(np,nf,nareas, maxage, Ncur=array(N[x,,,nyears,],
-                                                     c(np,maxage,nareas)),
+      popdynOneMICE(np,nf,nareas, maxage,
+                    Ncur=array(N[x,,,nyears,],
+                               c(np,maxage,nareas)),
                     Vcur=array(VF[x,,,,nyears],c(np,nf,maxage)),
                     FMretx=array(FMret[x,,,,nyears,],c(np,nf,maxage,nareas)),
                     FMx=array(FM[x,,,,nyears,],c(np,nf,maxage,nareas)),
@@ -1150,25 +1172,27 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
                     Linfx=Linf[x,],t0x=t0[x,],Mx=M[x,],
                     R0x=R0[x,],R0ax=matrix(R0a[x,,],nrow=np),
                     SSBpRx=matrix(SSBpR[x,,],nrow=np),ax=a_y,
-                    bx=b_y,Rel=Rel,SexPars=SexPars,x=x))
+                    bx=b_y,Rel=Rel,SexPars=SexPars,x=x,
+                    plusgroup=plusgroup))
 
-    N_P[,,,1,]<-aperm(array(as.numeric(unlist(NextYrN[1,], use.names=FALSE)),
+    N_P[,,,1,] <- aperm(array(as.numeric(unlist(NextYrN[1,], use.names=FALSE)),
                             dim=c(np,maxage, nareas, nsim)), c(4,1,2,3))
-    Biomass_P[,,,1,]<-aperm(array(as.numeric(unlist(NextYrN[23,],
+
+    Biomass_P[,,,1,] <- aperm(array(as.numeric(unlist(NextYrN[23,],
                                                     use.names=FALSE)),
                                   dim=c(np,maxage, nareas, nsim)), c(4,1,2,3))
-    SSN_P[,,,1,]<-aperm(array(as.numeric(unlist(NextYrN[24,],
+    SSN_P[,,,1,] <- aperm(array(as.numeric(unlist(NextYrN[24,],
                                                 use.names=FALSE)),
                               dim=c(np,maxage, nareas, nsim)), c(4,1,2,3))
-    SSB_P[,,,1,]<-aperm(array(as.numeric(unlist(NextYrN[25,], use.names=FALSE)),
+    SSB_P[,,,1,] <- aperm(array(as.numeric(unlist(NextYrN[25,], use.names=FALSE)),
                               dim=c(np,maxage, nareas, nsim)), c(4,1,2,3))
-    VBiomass_P[,,,1,]<-aperm(array(as.numeric(unlist(NextYrN[19,],
+    VBiomass_P[,,,1,] <- aperm(array(as.numeric(unlist(NextYrN[19,],
                                                      use.names=FALSE)),
                                    dim=c(np,maxage, nareas, nsim)), c(4,1,2,3))
     FML <- apply(array(FM[, ,,, nyears, ],c(nsim,np,nf,maxage,nareas)),
                  c(1, 3), max)
 
-    for(p in 1:np){
+   for(p in 1:np) {
       StockPars[[p]]$N_P<-N_P[,p,,,]
       StockPars[[p]]$Biomass_P<-Biomass_P[,p,,,]
       StockPars[[p]]$SSN_P<-SSN_P[,p,,,]
@@ -1468,7 +1492,8 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
                       Linfx=Linf[x,],t0x=t0[x,],Mx=M[x,],
                       R0x=R0[x,],R0ax=matrix(R0a[x,,],nrow=np),
                       SSBpRx=matrix(SSBpR[x,,],nrow=np),ax=a_y,
-                      bx=b_y,Rel=Rel,SexPars=SexPars,x=x))
+                      bx=b_y,Rel=Rel,SexPars=SexPars,x=x,
+                      plusgroup=plusgroup))
 
 
       N_P[,,,y,]<-aperm(array(as.numeric(unlist(NextYrN[1,], use.names=FALSE)),
@@ -1488,6 +1513,7 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
                                      dim=c(np,maxage, nareas, nsim)), c(4,1,2,3))
       FML <- apply(array(FM_P[, ,,, y-1, ],c(nsim,np,nf,maxage,nareas)),
                    c(1, 3), max)
+
 
       for(p in 1:np){
         StockPars[[p]]$N_P<-N_P[,p,,,]
@@ -1843,7 +1869,6 @@ multiMSE <- function(MOM, MPs=list(c("AvC","DCAC"),c("FMSYref","curE")),
             FleetPars[[p]][[f]]$SLarray_P <- MPCalcs$SLarray_P # vulnerable-at-length
           } # end of fleets
         } # end of stocks
-
 
       } # end of not an update year
     } # end of projection years
